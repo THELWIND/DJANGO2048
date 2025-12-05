@@ -135,6 +135,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Sử dụng WhiteNoise (Bỏ Manifest để tránh lỗi 500 nếu thiếu file)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
+# [FIX] Cho phép WhiteNoise tìm file trong các folder static của app (Dự phòng)
+WHITENOISE_USE_FINDERS = True
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
