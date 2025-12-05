@@ -145,6 +145,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-# Lấy thông tin từ biến môi trường 
+# Timeout sau 10 giây để tránh treo server gây lỗi 502
+EMAIL_TIMEOUT = 10 
+# Lấy thông tin từ biến môi trường (An toàn khi deploy)
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') 
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')

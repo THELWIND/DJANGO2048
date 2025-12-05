@@ -19,7 +19,7 @@ urlpatterns = [
 
     # --- PASSWORD RESET URLS ---
     path('reset_password/', 
-         auth_views.PasswordResetView.as_view(template_name='password_reset_form.html'), 
+         views.CustomPasswordResetView.as_view(), 
          name='password_reset'),
     
     path('reset_password_sent/', 

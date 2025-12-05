@@ -11,7 +11,32 @@ from .ai_solver import Game2048AI
 from .forms import CustomUserCreationForm  # Import Form mới
 import json
 
+from django.contrib.auth import views as auth_views
+from django.contrib import messages
+from smtplib import SMTPException
+import logging
+
+logger = logging.getLogger(__name__)
+
 # --- AUTH VIEWS ---
+class CustomPasswordResetView(auth_views.PasswordResetView):
+    template_name = 'password_reset_form.html'
+    
+    def form_valid(self, form):
+        try:
+            # Thử gửi email theo quy trình chuẩn
+            return super().form_valid(form)
+        except SMTPException as e:
+            # Nếu lỗi SMTP (sai pass, timeout, chặn mạng), bắt lỗi tại đây
+            logger.error(f"Email sending failed: {e}")
+            messages.error(self.request, "Không thể gửi email. Vui lòng kiểm tra lại cấu hình hoặc thử lại sau.")
+            return self.render_to_response(self.get_context_data(form=form))
+        except Exception as e:
+            # Bắt tất cả lỗi khác
+            logger.error(f"Unexpected error sending email: {e}")
+            messages.error(self.request, "Đã xảy ra lỗi hệ thống khi gửi email.")
+            return self.render_to_response(self.get_context_data(form=form))
+
 def register_view(request):
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST) # Sử dụng Custom Form
