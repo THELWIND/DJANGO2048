@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="auth-box">
+    <h1>Đăng Nhập</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Login</button>
+    </form>
+    <p style="margin-top: 10px;">
+        <a href="{% url 'password_reset' %}" style="color: #776e65; font-size: 0.9em;">Quên mật khẩu?</a>
+    </p>
+    <p>Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký</a></p>
+</div>
+{% endblock %}

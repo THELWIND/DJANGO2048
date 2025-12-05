@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+<style>
+    .online-container {
+        display: flex;
+        justify-content: center;
+        gap: 50px;
+        margin-top: 20px;
+    }
+    .player-section {
+        text-align: center;
+    }
+    .player-name {
+        font-size: 24px;
+        font-weight: bold;
+        color: #776e65;
+        margin-bottom: 10px;
+    }
+    .status-msg {
+        font-size: 20px;
+        font-weight: bold;
+        margin-top: 10px;
+        min-height: 30px;
+    }
+    .win-msg { color: #28a745; }
+    .lose-msg { color: #dc3545; }
+    
+    /* Smaller Grid for Versus */
+    .grid-cell-online {
+        width: 85px;
+        height: 85px;
+        background-image: url('{% static "assets/Tile Background.png" %}');
+        background-size: cover;
+        border-radius: 3px;
+    }
+    .tile-wrapper-online {
+        position: absolute;
+        width: 85px;
+        height: 85px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        font-size: 35px;
+        color: #776e65;
+        z-index: 10;
+    }
+    .tile-img-online {
+        width: 100%;
+        height: 100%;
+    }
+    .online-board {
+        width: 400px;
+        height: 400px;
+        background: white;
+        border-radius: 10px;
+        position: relative;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        border: 2px solid #eee;
+    }
+    /* Manual positioning for grid cells to match absolute tiles */
+    .grid-cell-online {
+        margin: 7.5px;
+        float: left;
+        border-radius: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>ONLINE RACE</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="font-size: 16px; color: #776e65; font-weight: bold;">
+            Room: <span style="color: #333;">{{ room_code }}</span>
+        </div>
+        <a href="{% url 'index' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Back</a>
+    </div>
+</div>
+
+<div id="waiting-message" style="text-align: center; font-size: 20px; color: #776e65; margin-top: 20px; display: none;">
+    Waiting for opponent...
+</div>
+
+<div class="online-container" id="game-area" style="display: none;">
+    <!-- Player 1 (Left) -->
+    <div class="player-section">
+        <div id="p1-name" class="player-name">Player 1</div>
+        <div class="score-box">Score: <span id="p1-score">0</span></div>
+        
+        <div id="p1-board" class="online-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell-online"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="p1-tiles"></div>
+        </div>
+        <div id="p1-status" class="status-msg"></div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-section">
+        <div id="p2-name" class="player-name">Player 2</div>
+        <div class="score-box">Score: <span id="p2-score">0</span></div>
+        
+        <div id="p2-board" class="online-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell-online"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="p2-tiles"></div>
+        </div>
+        <div id="p2-status" class="status-msg"></div>
+    </div>
+</div>
+
+<script>
+    const roomCode = "{{ room_code }}";
+    const tileBgUrl = "{% static 'assets/Tile Background.png' %}";
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const chatSocket = new WebSocket(
+        wsScheme + '://' + window.location.host +
+        '/ws/game/' + roomCode + '/'
+    );
+
+    let myRole = null; // 'p1' or 'p2' or 'spectator'
+    let gameActive = false;
+
+    chatSocket.onmessage = function(e) {
+        const msg = JSON.parse(e.data);
+        
+        if (msg.type === 'init') {
+            handleInit(msg);
+        } else if (msg.type === 'update') {
+            handleUpdate(msg.data);
+        } else if (msg.type === 'player_joined') {
+            document.getElementById('p1-name').innerText = msg.p1_name;
+            document.getElementById('p2-name').innerText = msg.p2_name;
+            checkWaiting(msg.p1_name, msg.p2_name);
+        }
+    };
+
+    function handleInit(data) {
+        myRole = data.role;
+        document.getElementById('p1-name').innerText = data.p1_name;
+        document.getElementById('p2-name').innerText = data.p2_name;
+        
+        checkWaiting(data.p1_name, data.p2_name);
+        
+        updateBoard('p1', data.board_p1, data.score_p1);
+        updateBoard('p2', data.board_p2, data.score_p2);
+        
+        if (data.winner) {
+            endGame(data.winner);
+        }
+    }
+    
+    function checkWaiting(p1, p2) {
+        if (p1 === "Waiting..." || p2 === "Waiting...") {
+            gameActive = false;
+            document.getElementById('waiting-message').style.display = 'block';
+            document.getElementById('game-area').style.display = 'flex'; // Show board anyway so they can see themselves
+        } else {
+            gameActive = true;
+            document.getElementById('waiting-message').style.display = 'none';
+            document.getElementById('game-area').style.display = 'flex';
+        }
+    }
+
+    function handleUpdate(data) {
+        // data contains: role, board, score, winner
+        if (data.role === 'p1') {
+            updateBoard('p1', data.board, data.score);
+        } else if (data.role === 'p2') {
+            updateBoard('p2', data.board, data.score);
+        }
+        
+        if (data.winner) {
+            endGame(data.winner);
+        }
+    }
+
+    function updateBoard(player, matrix, score) {
+        document.getElementById(`${player}-score`).innerText = score;
+        drawTiles(matrix, `${player}-tiles`);
+    }
+
+    function endGame(winner) {
+        gameActive = false;
+        const p1Status = document.getElementById('p1-status');
+        const p2Status = document.getElementById('p2-status');
+        
+        if (winner === 'p1') {
+            p1Status.innerText = "WINNER";
+            p1Status.className = "status-msg win-msg";
+            p2Status.innerText = "LOSE";
+            p2Status.className = "status-msg lose-msg";
+        } else {
+            p2Status.innerText = "WINNER";
+            p2Status.className = "status-msg win-msg";
+            p1Status.innerText = "LOSE";
+            p1Status.className = "status-msg lose-msg";
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (!myRole || myRole === 'spectator' || !gameActive) return;
+
+        let direction = '';
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault();
+            if (event.key === "ArrowLeft") direction = 'left';
+            else if (event.key === "ArrowRight") direction = 'right';
+            else if (event.key === "ArrowUp") direction = 'up';
+            else if (event.key === "ArrowDown") direction = 'down';
+            
+            if (chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.send(JSON.stringify({
+                    'direction': direction
+                }));
+            }
+        }
+    });
+
+    function drawTiles(matrix, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        
+        if (!matrix) return;
+
+        let imgSuffix = ' Tile.png';
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                let val = matrix[r][c];
+                if (typeof val === 'object' && val !== null) val = val.value;
+
+                if (val !== 0) {
+                    let tileWrapper = document.createElement('div');
+                    tileWrapper.className = 'tile-wrapper-online';
+                    
+                    // Standard 4x4 spacing: 7.5px margin, 85px cell -> 100px step
+                    let top = 7.5 + r * 100;
+                    let left = 7.5 + c * 100;
+
+                    tileWrapper.style.top = top + 'px';
+                    tileWrapper.style.left = left + 'px';
+
+                    let tileImg = document.createElement('img');
+                    tileImg.src = `/static/assets/${val}${imgSuffix}`; 
+                    tileImg.className = 'tile-img-online';
+
+                    tileImg.onerror = function() { 
+                        this.style.display = 'none';
+                        tileWrapper.style.backgroundImage = `url('${tileBgUrl}')`;
+                        tileWrapper.style.backgroundSize = 'cover';
+                        tileWrapper.innerText = val;
+                    };
+
+                    tileWrapper.appendChild(tileImg);
+                    container.appendChild(tileWrapper);
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

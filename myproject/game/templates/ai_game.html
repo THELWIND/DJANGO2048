@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>VERSUS AI</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <a href="{% url 'index' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Back</a>
+    </div>
+</div>
+
+<!-- AI Container -->
+<div id="ai-container" style="display: flex; justify-content: center; gap: 50px; width: 100%; max-width: 1000px; margin: 0 auto;">
+    <!-- User Board -->
+    <div class="player-wrapper">
+        <div class="player-label">You (Arrows)</div>
+        <div class="score-box" style="margin-bottom: 10px;">Score: <span id="user-score">0</span></div>
+        <div id="user-ai-board" class="player-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="tile-container-user-ai"></div>
+            <div id="user-ai-result" class="result-message"></div>
+        </div>
+    </div>
+
+    <!-- Agent Board -->
+    <div class="player-wrapper">
+        <div class="player-label">BOT</div>
+        <div class="score-box" style="margin-bottom: 10px;">Score: <span id="agent-score">0</span></div>
+        <div id="agent-ai-board" class="player-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="tile-container-agent-ai"></div>
+            <div id="agent-ai-result" class="result-message"></div>
+        </div>
+    </div>
+</div>
+
+<div id="game-over" style="display: none;">
+    <a href="{% url 'ai_game' %}" class="btn">Chơi lại</a>
+    <a href="{% url 'index' %}" class="btn" style="margin-top: 10px; background: #776e65;">Menu</a>
+</div>
+
+<!-- Init Data -->
+{{ user_ai_grid|json_script:"user-ai-grid-data" }}
+{{ agent_ai_grid|json_script:"agent-ai-grid-data" }}
+
+<script>
+    const tileBgUrl = "{% static 'assets/Tile Background.png' %}";
+    let isVersusOver = false;
+    let aiInterval = null;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function sendMove(direction) {
+        fetch("{% url 'move_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({direction: direction, player: 'user_ai'})
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('user-score').innerText = data.score;
+            drawTiles(data.grid, 'tile-container-user-ai');
+            if (data.status === 'won') endAIGame('user', 'won');
+            else if (data.status === 'lost') endAIGame('user', 'lost');
+        });
+    }
+    
+    function startAILoop() {
+        if (aiInterval) clearInterval(aiInterval);
+        aiInterval = setInterval(() => {
+            if (isVersusOver) {
+                clearInterval(aiInterval);
+                return;
+            }
+            fetch("{% url 'ai_move_api' %}")
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('agent-score').innerText = data.score;
+                drawTiles(data.grid, 'tile-container-agent-ai');
+                
+                if (data.status === 'won') {
+                    endAIGame('agent', 'won');
+                } else if (data.status === 'lost') {
+                    endAIGame('agent', 'lost');
+                }
+            });
+        }, 1000); 
+    }
+
+    function endAIGame(who, status) {
+        if (isVersusOver) return;
+        isVersusOver = true;
+        if (aiInterval) clearInterval(aiInterval);
+        
+        const userMsg = document.getElementById('user-ai-result');
+        const agentMsg = document.getElementById('agent-ai-result');
+
+        if (status === 'won') {
+            if (who === 'user') {
+                showResult(userMsg, 'YOU WIN!', 'win');
+                showResult(agentMsg, 'AI LOST', 'lose');
+            } else {
+                showResult(agentMsg, 'AI WINS!', 'win');
+                showResult(userMsg, 'YOU LOSE', 'lose');
+            }
+        } else {
+            // Lost (Stuck)
+            if (who === 'user') {
+                showResult(userMsg, 'STUCK!', 'lose');
+                showResult(agentMsg, 'WINNER', 'win');
+            } else {
+                showResult(agentMsg, 'AI STUCK!', 'lose');
+                showResult(userMsg, 'WINNER', 'win');
+            }
+        }
+        document.getElementById('game-over').style.display = 'block';
+    }
+
+    function showResult(element, text, type) {
+        element.innerText = text;
+        element.className = `result-message ${type}`;
+        element.style.display = 'block';
+    }
+
+    function drawTiles(matrix, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        let imgSuffix = ' Tile.png';
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                let val = matrix[r][c];
+                if (typeof val === 'object' && val !== null) val = val.value;
+
+                if (val !== 0) {
+                    let tileWrapper = document.createElement('div');
+                    tileWrapper.className = 'tile-wrapper';
+                    
+                    let top = 7.5 + r * 100;
+                    let left = 7.5 + c * 100;
+
+                    tileWrapper.style.top = top + 'px';
+                    tileWrapper.style.left = left + 'px';
+
+                    let tileImg = document.createElement('img');
+                    tileImg.src = `/static/assets/${val}${imgSuffix}`; 
+                    tileImg.className = 'tile-img';
+
+                    tileImg.onerror = function() { 
+                        this.style.display = 'none';
+                        tileWrapper.style.backgroundImage = `url('${tileBgUrl}')`;
+                        tileWrapper.style.backgroundSize = 'cover';
+                        tileWrapper.innerText = val;
+                    };
+
+                    tileWrapper.appendChild(tileImg);
+                    container.appendChild(tileWrapper);
+                }
+            }
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (isVersusOver) return;
+        let direction = '';
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault();
+            if (event.key === "ArrowLeft") direction = 'left';
+            else if (event.key === "ArrowRight") direction = 'right';
+            else if (event.key === "ArrowUp") direction = 'up';
+            else if (event.key === "ArrowDown") direction = 'down';
+            sendMove(direction);
+        }
+    });
+
+    drawTiles(JSON.parse(document.getElementById('user-ai-grid-data').textContent), 'tile-container-user-ai');
+    drawTiles(JSON.parse(document.getElementById('agent-ai-grid-data').textContent), 'tile-container-agent-ai');
+    startAILoop();
+</script>
+{% endblock %}

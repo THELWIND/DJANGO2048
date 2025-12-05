@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>2 PLAYERS (LOCAL)</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <a href="{% url 'index' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Back</a>
+    </div>
+</div>
+
+<!-- 2 Player Container -->
+<div id="versus-container" style="display: flex;">
+    <!-- Player 1 Board -->
+    <div class="player-wrapper">
+        <div class="player-label">Player 1 (WASD)</div>
+        <div class="score-box" style="margin-bottom: 10px;">Score: <span id="p1-score">0</span></div>
+        <div id="p1-board" class="player-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="tile-container-p1"></div>
+            <div id="p1-result" class="result-message"></div>
+        </div>
+    </div>
+
+    <!-- Player 2 Board -->
+    <div class="player-wrapper">
+        <div class="player-label">Player 2 (Arrows)</div>
+        <div class="score-box" style="margin-bottom: 10px;">Score: <span id="p2-score">0</span></div>
+        <div id="p2-board" class="player-board">
+            {% for r in "0123" %}
+                {% for c in "0123" %}
+                    <div class="grid-cell"></div>
+                {% endfor %}
+            {% endfor %}
+            <div id="tile-container-p2"></div>
+            <div id="p2-result" class="result-message"></div>
+        </div>
+    </div>
+</div>
+
+<div id="game-over" style="display: none;">
+    <a href="{% url 'local_pvp' %}" class="btn">Chơi lại</a>
+    <a href="{% url 'index' %}" class="btn" style="margin-top: 10px; background: #776e65;">Menu</a>
+</div>
+
+<!-- Init Data -->
+{{ p1_grid|json_script:"p1-grid-data" }}
+{{ p2_grid|json_script:"p2-grid-data" }}
+
+<script>
+    const tileBgUrl = "{% static 'assets/Tile Background.png' %}";
+    let isVersusOver = false;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function sendMove(direction, player) {
+        fetch("{% url 'move_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({direction: direction, player: player})
+        })
+        .then(response => response.json())
+        .then(data => {
+            let containerId = player === 'p1' ? 'tile-container-p1' : 'tile-container-p2';
+            let scoreId = player === 'p1' ? 'p1-score' : 'p2-score';
+            
+            document.getElementById(scoreId).innerText = data.score;
+            drawTiles(data.grid, containerId);
+            
+            if (data.status === 'won') endVersusGame(player, 'won');
+            else if (data.status === 'lost') endVersusGame(player, 'lost');
+        });
+    }
+
+    function endVersusGame(player, status) {
+        if (isVersusOver) return;
+        isVersusOver = true;
+        const p1Msg = document.getElementById('p1-result');
+        const p2Msg = document.getElementById('p2-result');
+
+        if (status === 'won') {
+            if (player === 'p1') {
+                showResult(p1Msg, 'WINNER!', 'win');
+                showResult(p2Msg, 'LOSER', 'lose');
+            } else {
+                showResult(p2Msg, 'WINNER!', 'win');
+                showResult(p1Msg, 'LOSER', 'lose');
+            }
+        } else {
+            // Player stuck/lost
+            if (player === 'p1') {
+                showResult(p1Msg, 'STUCK!', 'lose');
+                showResult(p2Msg, 'WINNER!', 'win');
+            } else {
+                showResult(p2Msg, 'STUCK!', 'lose');
+                showResult(p1Msg, 'WINNER!', 'win');
+            }
+        }
+        document.getElementById('game-over').style.display = 'block';
+    }
+
+    function showResult(element, text, type) {
+        element.innerText = text;
+        element.className = `result-message ${type}`;
+        element.style.display = 'block';
+    }
+
+    function drawTiles(matrix, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        let imgSuffix = ' Tile.png';
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                let val = matrix[r][c];
+                if (typeof val === 'object' && val !== null) val = val.value;
+
+                if (val !== 0) {
+                    let tileWrapper = document.createElement('div');
+                    tileWrapper.className = 'tile-wrapper';
+                    
+                    let top = 7.5 + r * 100;
+                    let left = 7.5 + c * 100;
+
+                    tileWrapper.style.top = top + 'px';
+                    tileWrapper.style.left = left + 'px';
+
+                    let tileImg = document.createElement('img');
+                    tileImg.src = `/static/assets/${val}${imgSuffix}`; 
+                    tileImg.className = 'tile-img';
+
+                    tileImg.onerror = function() { 
+                        this.style.display = 'none';
+                        tileWrapper.style.backgroundImage = `url('${tileBgUrl}')`;
+                        tileWrapper.style.backgroundSize = 'cover';
+                        tileWrapper.innerText = val;
+                    };
+
+                    tileWrapper.appendChild(tileImg);
+                    container.appendChild(tileWrapper);
+                }
+            }
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (isVersusOver) return;
+        let direction = '';
+        let player = '';
+
+        // Player 1 (WASD)
+        if (['a', 'd', 'w', 's', 'A', 'D', 'W', 'S'].includes(event.key)) {
+            player = 'p1';
+            if (event.key.toLowerCase() === 'a') direction = 'left';
+            else if (event.key.toLowerCase() === 'd') direction = 'right';
+            else if (event.key.toLowerCase() === 'w') direction = 'up';
+            else if (event.key.toLowerCase() === 's') direction = 'down';
+        }
+        // Player 2 (Arrows)
+        else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault(); 
+            player = 'p2';
+            if (event.key === "ArrowLeft") direction = 'left';
+            else if (event.key === "ArrowRight") direction = 'right';
+            else if (event.key === "ArrowUp") direction = 'up';
+            else if (event.key === "ArrowDown") direction = 'down';
+        }
+
+        if (direction && player) {
+            sendMove(direction, player);
+        }
+    });
+
+    drawTiles(JSON.parse(document.getElementById('p1-grid-data').textContent), 'tile-container-p1');
+    drawTiles(JSON.parse(document.getElementById('p2-grid-data').textContent), 'tile-container-p2');
+</script>
+{% endblock %}

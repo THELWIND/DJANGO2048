@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>SINGLE PLAYER (4x4)</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div id="score-container" style="display: flex; gap: 10px;">
+            <div class="score-box">SCORE: <span id="score">{{ score }}</span></div>
+            <div class="score-box">TIME: <span id="timer">00:00</span></div>
+        </div>
+        <a href="{% url 'index' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Back</a>
+    </div>
+</div>
+
+<!-- Game Container -->
+<div id="game-container" style="display: block;">
+    {% for row in grid %}
+        {% for cell in row %}
+            <div class="grid-cell"></div>
+        {% endfor %}
+    {% endfor %}
+    <div id="tile-container"></div>
+</div>
+
+<!-- Modal Game Over -->
+<div id="game-over">
+    <div id="game-over-text">GAME OVER!</div>
+    <a href="{% url 'single_player' %}" class="btn">Chơi lại</a>
+    <a href="{% url 'index' %}" class="btn" style="margin-top: 10px; background: #776e65;">Menu</a>
+</div>
+
+<!-- Init Data -->
+{{ grid|json_script:"grid-data" }}
+
+<script>
+    const tileBgUrl = "{% static 'assets/Tile Background.png' %}";
+    let gameTimerInterval = null;
+    let gameSeconds = 0;
+    let isGameOver = false;
+
+    function startGameTimer() {
+        if (gameTimerInterval) clearInterval(gameTimerInterval);
+        gameSeconds = 0;
+        document.getElementById('timer').innerText = "00:00";
+        
+        gameTimerInterval = setInterval(() => {
+            gameSeconds++;
+            const minutes = Math.floor(gameSeconds / 60);
+            const seconds = gameSeconds % 60;
+            document.getElementById('timer').innerText = 
+                (minutes < 10 ? '0' + minutes : minutes) + ':' + 
+                (seconds < 10 ? '0' + seconds : seconds);
+        }, 1000);
+    }
+
+    function stopGameTimer() {
+        if (gameTimerInterval) clearInterval(gameTimerInterval);
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function sendMove(direction) {
+        fetch("{% url 'move_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({direction: direction, player: 'single'})
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('score').innerText = data.score;
+            drawTiles(data.grid, 'tile-container');
+            if (data.status === 'lost') {
+                stopGameTimer();
+                isGameOver = true;
+                document.getElementById('game-over').style.display = 'block';
+            } else if (data.status === 'won') {
+                // Optional: Handle win notification
+            }
+        });
+    }
+
+    function drawTiles(matrix, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        let imgSuffix = ' Tile.png';
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                let val = matrix[r][c];
+                if (typeof val === 'object' && val !== null) val = val.value;
+
+                if (val !== 0) {
+                    let tileWrapper = document.createElement('div');
+                    tileWrapper.className = 'tile-wrapper';
+                    
+                    let top = 7.5 + r * 100;
+                    let left = 7.5 + c * 100;
+
+                    tileWrapper.style.top = top + 'px';
+                    tileWrapper.style.left = left + 'px';
+
+                    let tileImg = document.createElement('img');
+                    tileImg.src = `/static/assets/${val}${imgSuffix}`; 
+                    tileImg.className = 'tile-img';
+
+                    tileImg.onerror = function() { 
+                        this.style.display = 'none';
+                        tileWrapper.style.backgroundImage = `url('${tileBgUrl}')`;
+                        tileWrapper.style.backgroundSize = 'cover';
+                        tileWrapper.innerText = val;
+                    };
+
+                    tileWrapper.appendChild(tileImg);
+                    container.appendChild(tileWrapper);
+                }
+            }
+        }
+    }
+
+    // Controls
+    document.addEventListener('keydown', function(event) {
+        if (isGameOver) return;
+        let direction = '';
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault();
+            if (event.key === "ArrowLeft") direction = 'left';
+            else if (event.key === "ArrowRight") direction = 'right';
+            else if (event.key === "ArrowUp") direction = 'up';
+            else if (event.key === "ArrowDown") direction = 'down';
+            sendMove(direction);
+        }
+    });
+
+    // Init
+    drawTiles(JSON.parse(document.getElementById('grid-data').textContent), 'tile-container');
+    startGameTimer();
+</script>
+{% endblock %}

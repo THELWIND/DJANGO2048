@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>2048 Django</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #e8f5e9; /* Light Spring Green background */
+            text-align: center; 
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        .container { 
+            width: 100%; 
+            max-width: 1100px; /* Increased for 2-player mode */
+            margin: 50px auto; 
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .score-box { 
+            background: #00e676; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            color: white; 
+            font-weight: bold; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        /* Buttons */
+        .btn { 
+            padding: 12px 30px; 
+            background: #00e676; /* Spring Green */
+            color: white; 
+            text-decoration: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            border: none; 
+            font-weight: bold;
+            font-size: 16px;
+            transition: background 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+        .btn:hover { 
+            background: #00c853; 
+            transform: translateY(-2px);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Inputs */
+        input { 
+            padding: 12px 15px; 
+            margin: 10px 0; 
+            width: 100%; 
+            box-sizing: border-box; 
+            border: 1px solid #ccc; 
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #00e676;
+            box-shadow: 0 0 5px rgba(0, 230, 118, 0.3);
+        }
+
+        /* Auth Box (Login/Register) */
+        .auth-box {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: left;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        .auth-box h1 {
+            text-align: center;
+            color: #2e7d32;
+            margin-top: 0;
+        }
+        .auth-box p {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .auth-box a {
+            color: #00c853;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .auth-box a:hover {
+            text-decoration: underline;
+        }
+        .auth-box form p {
+            text-align: left;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .auth-box label {
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .auth-box .btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

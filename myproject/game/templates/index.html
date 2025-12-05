@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>2048</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="font-weight: bold; color: #776e65;">Xin chào, {{ user.username }}</div>
+        <a href="{% url 'logout' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Logout</a>
+    </div>
+</div>
+
+<!-- Menu Screen -->
+<div id="menu-screen" class="menu-screen" style="display: flex;">
+    <a href="{% url 'single_player' %}" class="menu-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">EASY (4x4)</a>
+    <a href="{% url 'hard_mode' %}" class="menu-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">HARD (6x6 + BOMB)</a>
+    <a href="{% url 'local_pvp' %}" class="menu-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">2 PLAYERS (LOCAL)</a>
+    <a href="{% url 'ai_game' %}" class="menu-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">VERSUS AI</a>
+    <button id="btn-online" class="menu-btn">ONLINE (PvP)</button>
+</div>
+
+<!-- Online Menu (Keep as Modal/Overlay for now or move to separate page if desired) -->
+<div id="online-menu" class="menu-screen" style="display: none;">
+    <h2 style="color: #2e7d32; margin-bottom: 20px;">ONLINE PvP</h2>
+    <a href="{% url 'create_room' %}" class="menu-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">CREATE ROOM</a>
+    <div style="margin-top: 20px; width: 200px; text-align: center;">
+        <form action="{% url 'join_room' %}" method="POST" style="display: flex; flex-direction: column; gap: 10px;">
+            {% csrf_token %}
+            <input type="text" name="room_code" placeholder="Enter Room Code" style="padding: 15px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; text-align: center;" required>
+            <button type="submit" class="menu-btn">JOIN</button>
+        </form>
+    </div>
+    <button id="btn-back-online" class="menu-btn" style="margin-top: 20px;">BACK</button>
+</div>
+
+<script>
+    // Only script needed is for toggling the Online sub-menu
+    document.getElementById('btn-online').addEventListener('click', () => {
+        document.getElementById('menu-screen').style.display = 'none';
+        document.getElementById('online-menu').style.display = 'flex';
+    });
+
+    document.getElementById('btn-back-online').addEventListener('click', () => {
+        document.getElementById('online-menu').style.display = 'none';
+        document.getElementById('menu-screen').style.display = 'flex';
+    });
+</script>
+{% endblock %}

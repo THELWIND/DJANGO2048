@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>HARD MODE (6x6 + BOMB)</h1>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div id="score-container" style="display: flex; gap: 10px;">
+            <div class="score-box">SCORE: <span id="score">{{ score }}</span></div>
+            <div class="score-box">TIME: <span id="timer">00:00</span></div>
+        </div>
+        <a href="{% url 'index' %}" class="btn" style="font-size: 14px; padding: 8px 20px;">Back</a>
+    </div>
+</div>
+
+<!-- 6x6 Hard Container -->
+<div id="game-container-6x6" style="display: block;">
+    {% for row in grid_6x6 %}
+        {% for cell in row %}
+            <div class="grid-cell-6x6"></div>
+        {% endfor %}
+    {% endfor %}
+    <div id="tile-container-6x6"></div>
+</div>
+
+<!-- Modal Game Over -->
+<div id="game-over">
+    <div id="game-over-text">GAME OVER!</div>
+    <a href="{% url 'hard_mode' %}" class="btn">Chơi lại</a>
+    <a href="{% url 'index' %}" class="btn" style="margin-top: 10px; background: #776e65;">Menu</a>
+</div>
+
+<!-- Init Data -->
+{{ grid_6x6|json_script:"grid-6x6-data" }}
+
+<script>
+    const tileBgUrl = "{% static 'assets/Tile Background.png' %}";
+    let gameTimerInterval = null;
+    let bombInterval = null;
+    let bombExplosionCheckPending = false;
+    let gameSeconds = 0;
+    let isGameOver = false;
+
+    function startGameTimer() {
+        if (gameTimerInterval) clearInterval(gameTimerInterval);
+        gameSeconds = 0;
+        document.getElementById('timer').innerText = "00:00";
+        
+        gameTimerInterval = setInterval(() => {
+            gameSeconds++;
+            const minutes = Math.floor(gameSeconds / 60);
+            const seconds = gameSeconds % 60;
+            document.getElementById('timer').innerText = 
+                (minutes < 10 ? '0' + minutes : minutes) + ':' + 
+                (seconds < 10 ? '0' + seconds : seconds);
+        }, 1000);
+    }
+
+    function stopGameTimer() {
+        if (gameTimerInterval) clearInterval(gameTimerInterval);
+        if (bombInterval) clearInterval(bombInterval);
+    }
+
+    function startBombTimer() {
+        if (bombInterval) clearInterval(bombInterval);
+        bombExplosionCheckPending = false;
+        
+        let lastTime = performance.now();
+
+        bombInterval = setInterval(() => {
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000; 
+            lastTime = currentTime;
+
+            const timers = document.querySelectorAll('.bomb-timer');
+            let anyExploded = false;
+            timers.forEach(timer => {
+                let remaining = parseFloat(timer.dataset.remaining);
+                remaining -= deltaTime;
+                if (remaining < 0) remaining = 0;
+                timer.dataset.remaining = remaining.toFixed(1);
+                timer.innerText = remaining.toFixed(1) + 's';
+                
+                if (remaining <= 0) {
+                    timer.style.color = '#550000';
+                    anyExploded = true;
+                }
+            });
+
+            if (anyExploded && !bombExplosionCheckPending && !isGameOver) {
+                bombExplosionCheckPending = true;
+                sendMove('check');
+            }
+
+        }, 100);
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function sendMove(direction) {
+        fetch("{% url 'move_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({direction: direction, player: 'single_6x6'})
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('score').innerText = data.score;
+            drawTiles(data.grid, 'tile-container-6x6');
+            
+            if (data.status === 'lost') {
+                stopGameTimer();
+                isGameOver = true;
+                const reason = data.reason;
+                let msg = "GAME OVER!";
+                if (reason === 'bomb_exploded') msg = "BOOM! YOU LOSE";
+                document.getElementById('game-over-text').innerText = msg;
+                document.getElementById('game-over').style.display = 'block';
+            } else {
+                bombExplosionCheckPending = false;
+            }
+        });
+    }
+
+    function drawTiles(matrix, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        let imgSuffix = ' Tile.png';
+
+        // 6x6 Grid Constants
+        let cellSize = 55;
+        let gap = 5.8 * 2; 
+        let offset = 5.8;
+
+        for (let r = 0; r < 6; r++) {
+            for (let c = 0; c < 6; c++) {
+                let cellData = matrix[r][c];
+                let val = 0;
+                let isBomb = false;
+                let remaining = 0;
+
+                if (typeof cellData === 'object' && cellData !== null) {
+                    val = cellData.value;
+                    if (cellData.type === 'bomb') {
+                        isBomb = true;
+                        remaining = cellData.remaining;
+                    }
+                } else {
+                    val = cellData;
+                }
+
+                if (val !== 0) {
+                    let tileWrapper = document.createElement('div');
+                    tileWrapper.className = 'tile-wrapper-6x6';
+                    
+                    let top = offset + r * (cellSize + gap);
+                    let left = offset + c * (cellSize + gap);
+
+                    tileWrapper.style.top = top + 'px';
+                    tileWrapper.style.left = left + 'px';
+
+                    let tileImg = document.createElement('img');
+                    let src = `/static/assets/${val}${imgSuffix}`;
+                    if (isBomb) src = `/static/assets/Bomb ${val}${imgSuffix}`;
+                    tileImg.src = src; 
+                    tileImg.className = 'tile-img';
+                    
+                    tileImg.onerror = function() { 
+                        this.style.display = 'none';
+                        tileWrapper.style.backgroundImage = `url('${tileBgUrl}')`;
+                        tileWrapper.style.backgroundSize = 'cover';
+                        tileWrapper.innerText = val;
+                    };
+
+                    tileWrapper.appendChild(tileImg);
+
+                    if (isBomb) {
+                        let timerDiv = document.createElement('div');
+                        timerDiv.className = 'bomb-timer';
+                        timerDiv.dataset.remaining = remaining;
+                        timerDiv.innerText = remaining.toFixed(1) + 's';
+                        tileWrapper.appendChild(timerDiv);
+                    }
+
+                    container.appendChild(tileWrapper);
+                }
+            }
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (isGameOver) return;
+        let direction = '';
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault();
+            if (event.key === "ArrowLeft") direction = 'left';
+            else if (event.key === "ArrowRight") direction = 'right';
+            else if (event.key === "ArrowUp") direction = 'up';
+            else if (event.key === "ArrowDown") direction = 'down';
+            sendMove(direction);
+        }
+    });
+
+    // Init
+    drawTiles(JSON.parse(document.getElementById('grid-6x6-data').textContent), 'tile-container-6x6');
+    startBombTimer();
+    startGameTimer();
+</script>
+{% endblock %}
