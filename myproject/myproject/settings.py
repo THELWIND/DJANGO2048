@@ -31,8 +31,16 @@ ALLOWED_HOSTS = []
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    
 if DEBUG:
     ALLOWED_HOSTS.append('*')
+
+# --- FIX CSRF ERROR ON RENDER ---
+# Khi chạy trên Render (HTTPS), Django cần biết domain nào là tin cậy.
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS = [f'https://{RENDER_EXTERNAL_HOSTNAME}']
+else:
+    CSRF_TRUSTED_ORIGINS = []
 
 
 # Application definition
