@@ -13,8 +13,9 @@ import json
 
 from django.contrib.auth import views as auth_views
 from django.contrib import messages
-from django.contrib.auth.models import User # Import User model
-from smtplib import SMTPException
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import PasswordResetForm
+import threading
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,30 +23,51 @@ logger = logging.getLogger(__name__)
 # --- AUTH VIEWS ---
 class CustomPasswordResetView(auth_views.PasswordResetView):
     template_name = 'password_reset_form.html'
-    
-    def form_valid(self, form):
-        email = form.cleaned_data.get('email')
-        # --- DEBUG BLOCK ---
-        exists = User.objects.filter(email=email).exists()
-        if exists:
-            print(f"DEBUG: Đã tìm thấy User với email '{email}'. Đang tiến hành gửi mail...")
-        else:
-            print(f"DEBUG: CẢNH BÁO - Không tìm thấy User nào có email '{email}'. Database có thể đã bị reset.")
-        # -------------------
+    form_class = PasswordResetForm
 
-        try:
-            # Thử gửi email theo quy trình chuẩn
-            return super().form_valid(form)
-        except SMTPException as e:
-            # Nếu lỗi SMTP (sai pass, timeout, chặn mạng), bắt lỗi tại đây
-            logger.error(f"Email sending failed: {e}")
-            messages.error(self.request, "Không thể gửi email. Vui lòng kiểm tra lại cấu hình hoặc thử lại sau.")
-            return self.render_to_response(self.get_context_data(form=form))
-        except Exception as e:
-            # Bắt tất cả lỗi khác
-            logger.error(f"Unexpected error sending email: {e}")
-            messages.error(self.request, "Đã xảy ra lỗi hệ thống khi gửi email.")
-            return self.render_to_response(self.get_context_data(form=form))
+    def form_valid(self, form):
+        # Lấy email từ form
+        email = form.cleaned_data.get('email')
+        
+        # Kiểm tra xem user có tồn tại không (để Debug)
+        if User.objects.filter(email=email).exists():
+            print(f"DEBUG: [Main Thread] Tìm thấy User '{email}'. Bắt đầu luồng gửi mail...")
+        else:
+            print(f"DEBUG: [Main Thread] Cảnh báo - Không tìm thấy User '{email}'.")
+
+        # Chuẩn bị các tham số cần thiết để gửi mail
+        # Lưu ý: Chúng ta không thể truyền 'request' vào thread vì nó có thể bị đóng
+        # Nhưng PasswordResetForm cần request để tạo link https://...
+        # Nên ta phải tạo context đầy đủ ở đây.
+        
+        opts = {
+            'use_https': self.request.is_secure(),
+            'token_generator': self.token_generator,
+            'from_email': self.from_email,
+            'email_template_name': self.email_template_name,
+            'subject_template_name': self.subject_template_name,
+            'request': self.request,
+            'html_email_template_name': self.html_email_template_name,
+            'extra_email_context': self.extra_email_context,
+        }
+
+        # Hàm chạy trong Thread riêng
+        def send_email_background():
+            try:
+                print(f"DEBUG: [Background Thread] Đang kết nối SMTP để gửi tới {email}...")
+                form.save(**opts)
+                print(f"DEBUG: [Background Thread] >>> GỬI THÀNH CÔNG tới {email} <<<")
+            except Exception as e:
+                # In lỗi chi tiết ra Log của Render
+                print(f"ERROR: [Background Thread] LỖI GỬI MAIL: {e}")
+
+        # Khởi chạy Thread
+        t = threading.Thread(target=send_email_background)
+        t.setDaemon(True) # Thread sẽ tự tắt khi server tắt
+        t.start()
+
+        # Trả về trang thành công ngay lập tức (Không chờ mail)
+        return super(auth_views.PasswordResetView, self).form_valid(form)
 
 def register_view(request):
     if request.method == 'POST':
