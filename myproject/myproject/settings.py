@@ -143,18 +143,18 @@ WHITENOISE_USE_FINDERS = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- EMAIL CONFIGURATION (SMTP - GMAIL) ---
+# --- EMAIL CONFIGURATION (SENDGRID) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-EMAIL_TIMEOUT = 30  # Tăng timeout lên 30s
+EMAIL_TIMEOUT = 30
 
-# Lấy thông tin từ biến môi trường
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') 
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+# Với SendGrid, User luôn là 'apikey', Password là API Key của bạn
+EMAIL_HOST_USER = 'apikey'
+EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY')
 
-# QUAN TRỌNG: Email gửi đi phải trùng với email đăng nhập để tránh bị chặn
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-SERVER_EMAIL = EMAIL_HOST_USER
+# Email người gửi (Phải trùng với Single Sender Identity đã xác thực trên SendGrid)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
