@@ -143,14 +143,18 @@ WHITENOISE_USE_FINDERS = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- EMAIL CONFIGURATION (SMTP) ---
+# --- EMAIL CONFIGURATION (SMTP - GMAIL) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465  # Đổi sang cổng SSL
-EMAIL_USE_TLS = False
-EMAIL_USE_SSL = True # Bắt buộc dùng SSL
-# Timeout sau 10 giây để tránh treo server gây lỗi 502
-EMAIL_TIMEOUT = 10 
-# Lấy thông tin từ biến môi trường (An toàn khi deploy)
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_TIMEOUT = 30  # Tăng timeout lên 30s
+
+# Lấy thông tin từ biến môi trường
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') 
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+
+# QUAN TRỌNG: Email gửi đi phải trùng với email đăng nhập để tránh bị chặn
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+SERVER_EMAIL = EMAIL_HOST_USER
