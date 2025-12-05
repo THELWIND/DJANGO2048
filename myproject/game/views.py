@@ -13,6 +13,7 @@ import json
 
 from django.contrib.auth import views as auth_views
 from django.contrib import messages
+from django.contrib.auth.models import User # Import User model
 from smtplib import SMTPException
 import logging
 
@@ -23,6 +24,15 @@ class CustomPasswordResetView(auth_views.PasswordResetView):
     template_name = 'password_reset_form.html'
     
     def form_valid(self, form):
+        email = form.cleaned_data.get('email')
+        # --- DEBUG BLOCK ---
+        exists = User.objects.filter(email=email).exists()
+        if exists:
+            print(f"DEBUG: Đã tìm thấy User với email '{email}'. Đang tiến hành gửi mail...")
+        else:
+            print(f"DEBUG: CẢNH BÁO - Không tìm thấy User nào có email '{email}'. Database có thể đã bị reset.")
+        # -------------------
+
         try:
             # Thử gửi email theo quy trình chuẩn
             return super().form_valid(form)
