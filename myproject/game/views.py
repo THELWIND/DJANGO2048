@@ -26,14 +26,16 @@ class CustomPasswordResetView(auth_views.PasswordResetView):
     form_class = PasswordResetForm
 
     def form_valid(self, form):
+        print("DEBUG: [START] Đã nhận yêu cầu Reset Password!", flush=True)
+        
         # Lấy email từ form
         email = form.cleaned_data.get('email')
         
         # Kiểm tra xem user có tồn tại không (để Debug)
         if User.objects.filter(email=email).exists():
-            print(f"DEBUG: [Main Thread] Tìm thấy User '{email}'. Bắt đầu luồng gửi mail...")
+            print(f"DEBUG: [Main Thread] Tìm thấy User '{email}'. Bắt đầu luồng gửi mail...", flush=True)
         else:
-            print(f"DEBUG: [Main Thread] Cảnh báo - Không tìm thấy User '{email}'.")
+            print(f"DEBUG: [Main Thread] Cảnh báo - Không tìm thấy User '{email}'.", flush=True)
 
         # Chuẩn bị các tham số cần thiết để gửi mail
         # Lưu ý: Chúng ta không thể truyền 'request' vào thread vì nó có thể bị đóng
@@ -54,12 +56,12 @@ class CustomPasswordResetView(auth_views.PasswordResetView):
         # Hàm chạy trong Thread riêng
         def send_email_background():
             try:
-                print(f"DEBUG: [Background Thread] Đang kết nối SMTP để gửi tới {email}...")
+                print(f"DEBUG: [Background Thread] Đang kết nối SMTP để gửi tới {email}...", flush=True)
                 form.save(**opts)
-                print(f"DEBUG: [Background Thread] >>> GỬI THÀNH CÔNG tới {email} <<<")
+                print(f"DEBUG: [Background Thread] >>> GỬI THÀNH CÔNG tới {email} <<<", flush=True)
             except Exception as e:
                 # In lỗi chi tiết ra Log của Render
-                print(f"ERROR: [Background Thread] LỖI GỬI MAIL: {e}")
+                print(f"ERROR: [Background Thread] LỖI GỬI MAIL: {e}", flush=True)
 
         # Khởi chạy Thread
         t = threading.Thread(target=send_email_background)
